@@ -1,0 +1,137 @@
+.market-strip {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 16px;
+  align-items: stretch;
+  background: var(--surf-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.tile {
+  border-right: 1px solid var(--line);
+  padding-right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
+}
+
+.tile:last-child {
+  border-right: none;
+}
+
+.tile-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.tile-pair {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+.tile-change {
+  font-size: var(--fs-label);
+}
+
+.tile-prices {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.tile-bid, .tile-ask {
+  font-size: var(--fs-data);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.tile-sep {
+  color: var(--ink-faint);
+  font-size: var(--fs-body);
+}
+
+.tile-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.spread-val {
+  font-size: var(--fs-micro);
+  color: var(--ink-dim);
+}
+
+.session-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+  border-left: 1px solid var(--line);
+  padding-left: 16px;
+}
+
+.session-pills {
+  display: flex;
+  gap: 6px;
+}
+
+.session-pill {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-faint);
+  background: var(--surf-raised);
+  border: 1px solid var(--line);
+}
+
+.session-pill.active {
+  color: var(--surf-void);
+  background: var(--regime-trend);
+  border-color: var(--regime-trend);
+}
+
+.bar-countdown {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  align-items: flex-end;
+  border-left: 1px solid var(--line);
+  padding-left: 16px;
+  min-width: 90px;
+}
+
+.countdown-value {
+  font-size: var(--fs-data);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+@media (max-width: 1100px) {
+  .market-strip {
+    grid-template-columns: 1fr;
+  }
+  .tiles {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .session-bar, .bar-countdown {
+    border-left: none;
+    padding-left: 0;
+    align-items: flex-start;
+  }
+}
