@@ -1,0 +1,135 @@
+.risk-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.heat-gauge {
+  height: 6px;
+  background: var(--surf-raised);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.heat-gauge-fill {
+  height: 100%;
+  transition: width 0.4s ease;
+}
+
+.risk-section-label {
+  font-size: var(--fs-micro);
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 8px 0 6px;
+}
+
+.corr-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 4px;
+}
+
+.corr-matrix th, .corr-matrix td {
+  font-size: var(--fs-micro);
+  text-align: center;
+  padding: 4px;
+  color: var(--ink-dim);
+}
+
+.corr-matrix th:first-child, .corr-matrix td:first-child {
+  text-align: left;
+  color: var(--ink-dim);
+  font-weight: 600;
+}
+
+.corr-matrix td {
+  color: var(--ink);
+}
+
+.corr-near {
+  background: rgba(217, 164, 65, 0.15);
+  color: var(--warn) !important;
+}
+
+.corr-breach {
+  background: rgba(255, 59, 59, 0.18);
+  color: var(--alarm) !important;
+  font-weight: 600;
+}
+
+.atr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.atr-row {
+  display: grid;
+  grid-template-columns: 30px 1fr 44px;
+  align-items: center;
+  gap: 6px;
+}
+
+.atr-pair {
+  font-size: var(--fs-micro);
+  color: var(--ink-dim);
+  font-weight: 600;
+}
+
+.atr-bars {
+  position: relative;
+  height: 5px;
+  background: var(--surf-raised);
+  border-radius: var(--radius-sm);
+}
+
+.atr-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: var(--radius-sm);
+}
+
+.atr-bar-target {
+  background: var(--ink-faint);
+}
+
+.atr-bar-current {
+  background: var(--regime-trend);
+  height: 5px;
+  opacity: 0.9;
+}
+
+.atr-val {
+  font-size: var(--fs-micro);
+  text-align: right;
+}
+
+.breaker-card {
+  margin-top: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  background: var(--surf-raised);
+}
+
+.breaker-tripped {
+  border-color: var(--alarm);
+  animation: alarm-pulse 1.4s ease-in-out infinite;
+}
+
+.breaker-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.breaker-loss {
+  font-size: var(--fs-data);
+  font-weight: 600;
+}
