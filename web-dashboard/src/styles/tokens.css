@@ -1,0 +1,58 @@
+/*
+  Thor Terminal design tokens.
+  Core surface/ink/semantic palette is deliberately 8 hexes — every other
+  color (warn/alarm/regime hues) is a named *extension* layered on top so
+  the base palette stays disciplined and nothing reads as decoration.
+*/
+:root {
+  /* surfaces (layered, never pure black) */
+  --surf-void: #0a0d12;
+  --surf-panel: #11151d;
+  --surf-raised: #1a1f2b;
+  --line: #242b3a;
+
+  /* ink */
+  --ink: #dde3ec;
+  --ink-dim: #6b7585;
+  --ink-faint: #3d4453;
+
+  /* semantic poles: long/profit vs short/loss */
+  --pos: #3ecf8e;
+  --pos-dim: #1f6e4d;
+  --neg: #e2574c;
+  --neg-dim: #7a342c;
+
+  /* alert tiers (extensions, not core palette) */
+  --warn: #d9a441;
+  --warn-dim: #5e4a22;
+  --alarm: #ff3b3b;
+  --alarm-dim: #5c1414;
+
+  /* regime hues — HMM states (extensions) */
+  --regime-trend: #5b8cff;
+  --regime-meanrev: #c98ee0;
+  --regime-highvol: #f2a93c;
+
+  /* type */
+  --font-ui: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* type scale */
+  --fs-micro: 10px;
+  --fs-label: 11px;
+  --fs-body: 13px;
+  --fs-data: 15px;
+  --fs-data-lg: 20px;
+  --fs-data-xl: 30px;
+
+  --radius-sm: 3px;
+  --radius-md: 5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
