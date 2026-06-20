@@ -1,0 +1,77 @@
+.acct-panel {
+  gap: 4px;
+}
+
+.acct-equity {
+  margin-bottom: 10px;
+}
+
+.equity-value {
+  font-size: var(--fs-data-xl);
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.equity-spark {
+  margin-top: 4px;
+}
+
+.acct-pnl-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+}
+
+.pnl-val {
+  font-size: var(--fs-data);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.acct-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.dd-gauge {
+  position: relative;
+  height: 6px;
+  background: var(--surf-raised);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.dd-gauge-fill {
+  height: 100%;
+  transition: width 0.4s ease;
+}
+
+.dd-gauge-ceiling {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--alarm);
+}
+
+.dd-gauge-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: var(--fs-micro);
+}
+
+.acct-mini-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 6px;
+}
