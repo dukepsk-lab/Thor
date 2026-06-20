@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   PAIRS,
   type AccountHealth,
@@ -193,8 +193,6 @@ function initState(): MockFeedState {
 
 export function useMockFeed(): MockFeedState {
   const [state, setState] = useState<MockFeedState>(initState);
-  const tickRef = useRef(state);
-  tickRef.current = state;
 
   useEffect(() => {
     const priceTimer = setInterval(() => {
