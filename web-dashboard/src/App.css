@@ -12,12 +12,21 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 4px;
+  gap: 12px;
 }
 
 .terminal-brand {
   display: flex;
   align-items: baseline;
   gap: 14px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.terminal-brand .label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .terminal-logo {
@@ -63,6 +72,12 @@
       'positions positions'
       'model model'
       'system system';
+  }
+}
+
+@media (max-width: 480px) {
+  .terminal-brand .label {
+    display: none;
   }
 }
 
