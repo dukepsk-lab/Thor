@@ -1,0 +1,81 @@
+.terminal {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 12px;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.terminal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+
+.terminal-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.terminal-logo {
+  font-family: var(--font-mono);
+  font-size: var(--fs-data-lg);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+}
+
+.terminal-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 340px 1fr 320px;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'market market market'
+    'account positions risk'
+    'model model model'
+    'system system system';
+  gap: 12px;
+}
+
+.area-market { grid-area: market; }
+.area-account { grid-area: account; display: flex; }
+.area-positions { grid-area: positions; display: flex; min-height: 220px; }
+.area-risk { grid-area: risk; display: flex; }
+.area-model { grid-area: model; display: flex; min-height: 320px; }
+.area-system { grid-area: system; display: flex; }
+
+.area-account > *, .area-positions > *, .area-risk > *, .area-model > * {
+  width: 100%;
+}
+
+@media (max-width: 1300px) {
+  .terminal-grid {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto minmax(260px, auto) minmax(320px, auto) auto;
+    grid-template-areas:
+      'market market'
+      'account risk'
+      'positions positions'
+      'model model'
+      'system system';
+  }
+}
+
+@media (max-width: 760px) {
+  .terminal-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(260px, 1fr) auto;
+    grid-template-areas:
+      'market'
+      'positions'
+      'system';
+  }
+  .area-account, .area-risk, .area-model {
+    display: none;
+  }
+}

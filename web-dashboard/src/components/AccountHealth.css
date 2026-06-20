@@ -19,8 +19,8 @@
 
 .acct-pnl-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px 8px;
   padding: 10px 0;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);

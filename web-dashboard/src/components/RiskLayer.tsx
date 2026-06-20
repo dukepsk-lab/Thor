@@ -53,7 +53,7 @@ export default function RiskLayer({ risk }: { risk: RiskState }) {
             <tr key={a}>
               <th>{a.slice(0, 3)}</th>
               {PAIRS.map((b) => (
-                <td key={b} className={`mono ${corrCellClass(risk.correlation[a][b], risk.correlationCeiling)}`}>
+                <td key={b} className={`mono ${a === b ? '' : corrCellClass(risk.correlation[a][b], risk.correlationCeiling)}`}>
                   {a === b ? '—' : risk.correlation[a][b].toFixed(2)}
                 </td>
               ))}

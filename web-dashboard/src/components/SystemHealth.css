@@ -3,12 +3,25 @@
   align-items: center;
   padding: 8px 16px;
   gap: 24px;
+  overflow-x: auto;
 }
 
 .sys-row {
   display: flex;
   gap: 22px;
   flex-shrink: 0;
+}
+
+@media (max-width: 760px) {
+  .system-panel {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .sys-log {
+    border-left: none;
+    padding-left: 0;
+    flex-basis: 100%;
+  }
 }
 
 .sys-cell {
