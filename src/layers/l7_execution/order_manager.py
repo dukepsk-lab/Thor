@@ -151,3 +151,22 @@ class OrderManager:
                 
         print(f"OrderManager: Failed to close position {ticket}. Error: {mt5.last_error()}")
         return None
+
+    def flatten_all(self) -> list:
+        """
+        Closes every open position across all symbols. Used by the kill switch.
+        Returns a list of {ticket, symbol, closed: bool} results.
+        """
+        positions = mt5.positions_get()
+        if positions is None:
+            return []
+
+        results = []
+        for pos in positions:
+            result = self.close_position(pos.ticket, pos.symbol)
+            results.append({
+                "ticket": pos.ticket,
+                "symbol": pos.symbol,
+                "closed": result is not None and result.get("retcode") == mt5.TRADE_RETCODE_DONE,
+            })
+        return results
