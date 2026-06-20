@@ -1,0 +1,16 @@
+.model-panel {
+  flex: 1;
+}
+
+.sc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  overflow-y: auto;
+}
+
+@media (max-width: 1400px) {
+  .sc-grid {
+    grid-template-columns: 1fr;
+  }
+}

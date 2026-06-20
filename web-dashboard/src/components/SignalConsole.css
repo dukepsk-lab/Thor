@@ -1,0 +1,165 @@
+.signal-console {
+  background: var(--surf-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sc-pair {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.sc-health {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sc-infer {
+  font-size: var(--fs-micro);
+}
+
+.sc-regime-rail {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 3px;
+}
+
+.sc-regime-seg {
+  text-align: center;
+  font-size: var(--fs-micro);
+  padding: 3px 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surf-panel);
+  color: var(--ink-faint);
+  border: 1px solid var(--line);
+}
+
+.sc-regime-seg.active {
+  border-color: transparent;
+  font-weight: 600;
+}
+
+.sc-persistence {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-micro);
+}
+
+.sc-gauge-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sc-gauge {
+  width: 70px;
+  height: 38px;
+  flex-shrink: 0;
+}
+
+.sc-gauge-track {
+  fill: none;
+  stroke: var(--surf-panel);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.sc-gauge-fill {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.5s ease;
+}
+
+.sc-gate-tick {
+  fill: var(--ink);
+  stroke: var(--surf-void);
+  stroke-width: 1;
+}
+
+.sc-gauge-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sc-conviction {
+  font-size: var(--fs-data-lg);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.sc-ensemble {
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+}
+
+.sc-track {
+  position: relative;
+  height: 30px;
+  background: var(--surf-panel);
+  border-radius: var(--radius-sm);
+  margin-bottom: 3px;
+}
+
+.sc-track-label {
+  position: absolute;
+  bottom: 1px;
+  font-size: 8px;
+  color: var(--ink-faint);
+  transform: translateX(-50%);
+}
+
+.sc-vote {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surf-raised);
+  border: 1.5px solid var(--ink-dim);
+  color: var(--ink);
+  font-size: 8px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateX(-50%);
+  transition: left 0.4s ease;
+}
+
+.sc-ensemble-agree .sc-vote {
+  border-color: var(--pos);
+  color: var(--pos);
+}
+
+.sc-ensemble-disagree .sc-vote {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.sc-agree-label {
+  text-align: right;
+  display: block;
+}
+
+.sc-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
