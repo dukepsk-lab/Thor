@@ -1,0 +1,8 @@
+{
+    "tp_multiplier": 1.3264284224466982,
+    "sl_multiplier": 2.083662236506308,
+    "tree_depth": 4,
+    "learning_rate": 0.017691914559333347,
+    "n_estimators": 150,
+    "confidence_threshold": 0.5800638611255994
+}
