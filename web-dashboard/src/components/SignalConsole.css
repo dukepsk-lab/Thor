@@ -154,6 +154,13 @@
   display: block;
 }
 
+.sc-empty {
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  text-align: center;
+}
+
 .sc-meta {
   display: flex;
   justify-content: space-between;

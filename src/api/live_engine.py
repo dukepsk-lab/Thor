@@ -228,6 +228,12 @@ def _read_risk_per_trade_pct(symbol: str) -> float:
     return 1.0
 
 
+def get_drawdown_pct(equity: float) -> float:
+    state = _load_breaker_state()
+    peak = max(state.get("peak_equity") or 0.0, equity)
+    return round(((peak - equity) / peak * 100) if peak > 0 else 0.0, 2)
+
+
 def get_risk_state(symbols: List[str], daily_loss_limit_pct: float = 5.0, max_drawdown_limit_pct: float = 15.0) -> dict:
     info = mt5.account_info()
     equity = info.equity if info else 0.0

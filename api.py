@@ -147,41 +147,59 @@ def ensure_mt5():
 def get_live_account():
     if not ensure_mt5():
         return {"error": "MT5 not connected", "balance": 0, "equity": 0, "margin_level": 0, "profit": 0}
-        
+
     info = mt5.account_info()
     if info is None:
         return {"error": "Failed to get account info", "balance": 0, "equity": 0, "margin_level": 0, "profit": 0}
-        
+
+    now = datetime.now()
+    deals = mt5.history_deals_get(now - timedelta(days=31), now) or []
+    daily_pnl = sum(d.profit for d in deals if datetime.fromtimestamp(d.time).date() == now.date())
+    weekly_pnl = sum(d.profit for d in deals if datetime.fromtimestamp(d.time) >= now - timedelta(days=7))
+    mtd_pnl = sum(d.profit for d in deals if datetime.fromtimestamp(d.time).month == now.month and datetime.fromtimestamp(d.time).year == now.year)
+    realized_pnl_30d = sum(d.profit for d in deals if datetime.fromtimestamp(d.time) >= now - timedelta(days=30))
+
     return {
         "balance": info.balance,
         "equity": info.equity,
         "margin_free": info.margin_free,
         "margin_level": getattr(info, 'margin_level', 0.0),
-        "profit": info.profit
+        "profit": info.profit,
+        "realized_pnl_30d": round(realized_pnl_30d, 2),
+        "daily_pnl": round(daily_pnl, 2),
+        "weekly_pnl": round(weekly_pnl, 2),
+        "mtd_pnl": round(mtd_pnl, 2),
+        "drawdown_pct": live_engine.get_drawdown_pct(info.equity),
+        "max_drawdown_pct": 15.0,
+        "leverage_used": round((info.equity - info.margin_free) / info.equity, 2) if info.equity else 0.0,
     }
 
 @app.get("/api/live/positions")
 def get_live_positions():
     if not ensure_mt5():
         return []
-        
+
     positions = mt5.positions_get()
     if positions is None:
         return []
-        
+
     result = []
     for pos in positions:
+        direction = "BUY" if pos.type == mt5.ORDER_TYPE_BUY else "SELL"
+        pip = live_engine.PIP.get(pos.symbol, 0.0001)
+        dist_to_boundary = min(abs(pos.price_current - pos.sl), abs(pos.tp - pos.price_current)) / pip if pos.sl and pos.tp else None
         result.append({
             "ticket": pos.ticket,
             "symbol": pos.symbol,
-            "type": "BUY" if pos.type == mt5.ORDER_TYPE_BUY else "SELL",
+            "type": direction,
             "volume": pos.volume,
             "open_price": pos.price_open,
             "current_price": pos.price_current,
             "sl": pos.sl,
             "tp": pos.tp,
             "profit": pos.profit,
-            "time": datetime.fromtimestamp(pos.time).strftime('%Y-%m-%d %H:%M:%S')
+            "time_ms": int(pos.time) * 1000,
+            "near_boundary": dist_to_boundary is not None and dist_to_boundary < 20,
         })
     return result
 

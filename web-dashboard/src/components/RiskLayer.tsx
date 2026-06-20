@@ -52,11 +52,14 @@ export default function RiskLayer({ risk }: { risk: RiskState }) {
           {PAIRS.map((a) => (
             <tr key={a}>
               <th>{a.slice(0, 3)}</th>
-              {PAIRS.map((b) => (
-                <td key={b} className={`mono ${a === b ? '' : corrCellClass(risk.correlation[a][b], risk.correlationCeiling)}`}>
-                  {a === b ? '—' : risk.correlation[a][b].toFixed(2)}
-                </td>
-              ))}
+              {PAIRS.map((b) => {
+                const v = risk.correlation[a]?.[b];
+                return (
+                  <td key={b} className={`mono ${a === b || v === undefined ? '' : corrCellClass(v, risk.correlationCeiling)}`}>
+                    {a === b ? '—' : v === undefined ? '·' : v.toFixed(2)}
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>

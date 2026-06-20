@@ -10,9 +10,16 @@ export default function ModelState({ signals }: { signals: Record<string, Signal
         <span className="label">updates on H4 close</span>
       </div>
       <div className="sc-grid">
-        {PAIRS.map((p) => (
-          <SignalConsole key={p} signal={signals[p]} />
-        ))}
+        {PAIRS.map((p) =>
+          signals[p] ? (
+            <SignalConsole key={p} signal={signals[p]} />
+          ) : (
+            <div key={p} className="signal-console sc-empty">
+              <span className="sc-pair">{p}</span>
+              <span className="ink-dim label">awaiting inference…</span>
+            </div>
+          ),
+        )}
       </div>
     </div>
   );

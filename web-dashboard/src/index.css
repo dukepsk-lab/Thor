@@ -59,6 +59,7 @@ button, input {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 
 .panel-head {
