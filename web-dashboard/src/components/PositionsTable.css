@@ -1,0 +1,54 @@
+.pos-panel {
+  flex: 1;
+}
+
+.pos-table-wrap {
+  overflow: auto;
+  flex: 1;
+}
+
+.pos-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pos-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surf-panel);
+  text-align: left;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.pos-table td {
+  padding: 7px 10px;
+  font-size: var(--fs-body);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.pos-pair {
+  font-weight: 600;
+}
+
+.pos-sltp {
+  color: var(--ink-dim);
+  font-size: var(--fs-micro);
+}
+
+.pos-empty {
+  text-align: center;
+  color: var(--ink-dim);
+  padding: 24px 0;
+}
+
+.row-boundary {
+  background: rgba(217, 164, 65, 0.07);
+  box-shadow: inset 2px 0 0 var(--warn);
+}
