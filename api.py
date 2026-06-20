@@ -238,6 +238,49 @@ def get_stats():
         "total_trades": 540
     }
 
+# ==========================================
+# TERMINAL DASHBOARD ENDPOINTS (real data)
+# ==========================================
+
+from src.api import live_engine
+from src.layers.l7_execution.order_manager import OrderManager
+
+_order_manager = OrderManager(magic_number=777, slippage_points=10)
+
+@app.get("/api/live/prices")
+def get_live_prices():
+    if not ensure_mt5():
+        return {}
+    return live_engine.get_live_prices(get_active_symbols())
+
+@app.get("/api/signals/state")
+def get_signals_state():
+    if not ensure_mt5():
+        return {}
+    out = {}
+    for sym in get_active_symbols():
+        state = live_engine.compute_signal_state(sym)
+        if state is not None:
+            out[sym] = state
+    return out
+
+@app.get("/api/risk/state")
+def get_risk_state():
+    if not ensure_mt5():
+        return {}
+    return live_engine.get_risk_state(get_active_symbols())
+
+@app.get("/api/system/health")
+def get_system_health():
+    return live_engine.get_system_health()
+
+@app.post("/api/execution/flatten-all")
+def flatten_all():
+    if not ensure_mt5():
+        return {"error": "MT5 not connected", "results": []}
+    results = _order_manager.flatten_all()
+    return {"results": results}
+
 from fastapi.staticfiles import StaticFiles
 if os.path.exists("web-dashboard/dist"):
     app.mount("/", StaticFiles(directory="web-dashboard/dist", html=True), name="static")
