@@ -66,7 +66,7 @@ export interface RiskState {
 export type Regime = 'TREND' | 'MEAN_REV' | 'HIGH_VOL';
 
 export interface EnsembleVote {
-  model: 'M1' | 'M2' | 'M3';
+  model: 'TREE' | 'CNN';
   vote: Direction | 'FLAT';
   weight: number;
 }

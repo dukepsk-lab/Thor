@@ -89,7 +89,7 @@ export default function SignalConsole({ signal }: { signal: SignalState }) {
               style={{ left: `${VOTE_X[v.vote]}%`, top: `${4 + i * 9}px` }}
               title={`${v.model}: ${v.vote}`}
             >
-              {v.model.slice(1)}
+              {v.model[0]}
             </span>
           ))}
         </div>

@@ -56,10 +56,10 @@ function makeSignalState(pair: Pair): SignalState {
   const votes: Array<Direction2> = ['LONG', 'SHORT', 'FLAT'];
   const agree = Math.random() > 0.35;
   const primary = votes[Math.floor(Math.random() * votes.length)];
-  const ensemble: EnsembleVote[] = (['M1', 'M2', 'M3'] as const).map((m, i) => ({
+  const ensemble: EnsembleVote[] = (['TREE', 'CNN'] as const).map((m, i) => ({
     model: m,
     vote: agree ? primary : votes[(i + Math.floor(Math.random() * votes.length)) % votes.length],
-    weight: rand(0.2, 0.45),
+    weight: rand(0.3, 0.7),
   }));
   return {
     pair,
