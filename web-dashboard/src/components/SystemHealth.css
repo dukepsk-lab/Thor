@@ -1,0 +1,47 @@
+.system-panel {
+  flex-direction: row;
+  align-items: center;
+  padding: 8px 16px;
+  gap: 24px;
+}
+
+.sys-row {
+  display: flex;
+  gap: 22px;
+  flex-shrink: 0;
+}
+
+.sys-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sys-log {
+  display: flex;
+  gap: 18px;
+  overflow-x: auto;
+  border-left: 1px solid var(--line);
+  padding-left: 18px;
+  flex: 1;
+  white-space: nowrap;
+}
+
+.sys-log-line {
+  font-size: var(--fs-micro);
+  display: flex;
+  gap: 6px;
+  color: var(--ink-dim);
+}
+
+.sys-log-warn {
+  color: var(--warn);
+}
+
+.sys-log-error {
+  color: var(--alarm);
+}
+
+.sys-log-time {
+  font-size: var(--fs-micro);
+}

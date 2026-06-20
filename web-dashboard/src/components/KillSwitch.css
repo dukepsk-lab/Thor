@@ -1,0 +1,33 @@
+.kill-switch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surf-raised);
+  border: 1px solid var(--neg);
+  color: var(--neg);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.kill-switch:hover {
+  background: var(--neg);
+  color: var(--surf-void);
+}
+
+.kill-switch-confirm {
+  background: var(--alarm);
+  border-color: var(--alarm);
+  color: var(--surf-void);
+  animation: alarm-pulse 1s ease-in-out infinite;
+}
+
+.kill-switch-tripped {
+  background: var(--alarm-dim);
+  border-color: var(--alarm);
+  color: var(--alarm);
+}
