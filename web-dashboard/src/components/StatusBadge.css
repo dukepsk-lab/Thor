@@ -1,0 +1,34 @@
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.st-healthy {
+  color: var(--pos);
+  background: rgba(62, 207, 142, 0.1);
+}
+
+.st-caution {
+  color: var(--warn);
+  background: rgba(217, 164, 65, 0.12);
+}
+
+.st-critical {
+  color: var(--alarm);
+  background: rgba(255, 59, 59, 0.14);
+  animation: alarm-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes alarm-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
