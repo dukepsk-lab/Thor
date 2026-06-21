@@ -54,12 +54,7 @@ def compute_and_save_stats(per_symbol: dict, out_path: str = "data/backtest_stat
     return stats
 
 def load_threshold(symbol):
-    path = f'models/{symbol}/best_params_{symbol}.json'
-    if os.path.exists(path):
-        with open(path, 'r') as f:
-            params = json.load(f)
-            return params.get('confidence_threshold', 0.5)
-    return 0.5
+    return decision._load_threshold(symbol)
 
 def simulate_single_asset(df, symbol, initial_balance=1000.0):
     # Spread approximations
@@ -121,7 +116,6 @@ def run_single_backtests():
 
     equities = {}
     per_symbol_stats = {}
-    common_idx = None
     
     # We will simulate allocating $333.33 (1/3 of $1000) to each asset independently
     initial_alloc = 1000.0 / len(symbols)
@@ -149,10 +143,7 @@ def run_single_backtests():
         target = df_test['signal'].where(df_test['confidence'] >= threshold, 0).astype(float)
         per_symbol_stats[sym] = (target, df_test['return'])
 
-        if common_idx is None:
-            common_idx = dates
-
-        equities[sym] = equity
+        equities[sym] = pd.Series(equity, index=pd.DatetimeIndex(dates))
         
         final_balance = equity[-1]
         profit_pct = (final_balance - initial_alloc) / initial_alloc * 100
@@ -160,20 +151,24 @@ def run_single_backtests():
         
         plt.plot(dates, equity, linestyle='--', alpha=0.5, label=f'{sym} (Net: {profit_pct:.2f}%)')
         
-    # Calculate Combined Portfolio Equity
+    # Calculate Combined Portfolio Equity. Symbols can have different out-of-sample
+    # window lengths (different data availability), so align on the union of dates
+    # instead of assuming equal-length arrays. Before a symbol's first bar it hasn't
+    # started trading yet, so it holds its flat initial allocation.
     if equities:
-        combined_equity = np.zeros(len(common_idx))
-        for sym in symbols:
-            if sym in equities:
-                combined_equity += np.array(equities[sym])
-                
-        final_port_balance = combined_equity[-1]
+        common_idx = sorted(set().union(*[s.index for s in equities.values()]))
+        combined_equity = pd.Series(0.0, index=common_idx)
+        for sym, s in equities.items():
+            aligned = s.reindex(common_idx).ffill().fillna(initial_alloc)
+            combined_equity += aligned
+
+        final_port_balance = combined_equity.iloc[-1]
         port_profit_pct = (final_port_balance - 1000.0) / 1000.0 * 100
         print(f"\n--- Equal-Weight Portfolio Results ---")
         print(f"Initial Portfolio Balance: $1000.00")
         print(f"Final Portfolio Balance:   ${final_port_balance:.2f} ({port_profit_pct:.2f}%)")
-        
-        plt.plot(common_idx, combined_equity, color='black', linewidth=3, label=f'Combined Portfolio (Net: {port_profit_pct:.2f}%)')
+
+        plt.plot(common_idx, combined_equity.values, color='black', linewidth=3, label=f'Combined Portfolio (Net: {port_profit_pct:.2f}%)')
         
     plt.title('Equal-Weight Portfolio vs Individual Assets (Last 3 Months, No PPO)', fontsize=14)
     plt.xlabel('Date')
