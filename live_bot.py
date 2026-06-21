@@ -1,20 +1,14 @@
 import os
 import json
-import time
-import joblib
-import pandas as pd
-import numpy as np
-import torch
 import MetaTrader5 as mt5
+import pandas as pd
 from datetime import datetime
 
 from src.layers.l0_ingestion.mt5_client import mt5_client
-from src.layers.l1_features.trend_memory import calculate_ker
-from src.layers.l1_features.volatility import calculate_yang_zhang, calculate_atr
-from src.layers.l3_primary_model.cnn_model import TemporalCNN
 from src.layers.l6_risk_sizing.sizing import calculate_base_size, apply_confidence_scaling
 from src.layers.l7_execution.guards import ExecutionGuards
 from src.layers.l7_execution.order_manager import OrderManager
+from src.inference import decision
 
 class LiveBot:
     def __init__(self, symbol="EURUSD"):
@@ -53,20 +47,15 @@ class LiveBot:
         self.load_models()
 
     def load_models(self):
-        if not os.path.exists(f'{self.model_dir}/hmm_model.pkl'):
-            raise FileNotFoundError(f"Models for {self.symbol} not found. Please run train_and_save.py first!")
-            
         print("Loading models from disk...")
-        self.hmm = joblib.load(f'{self.model_dir}/hmm_model.pkl')
-        
-        import lightgbm as lgb
-        self.tree = lgb.Booster(model_file=f'{self.model_dir}/lgb_model.txt')
-        
-        self.cnn = TemporalCNN(num_features=4, sequence_length=10, num_classes=3)
-        self.cnn.load_state_dict(torch.load(f'{self.model_dir}/cnn_model.pt', weights_only=True))
-        self.cnn.eval()
-        
-        self.meta = joblib.load(f'{self.model_dir}/meta_model.pkl')
+        # Shared loader: validates the meta-learner contract and re-wraps the HMM
+        # so the live inference path is identical to training and backtest.
+        self.models = decision.load_models(self.symbol, load_cnn=False)
+        # Keep the configured threshold (best_params) but let the loader's value win
+        # if a per-model threshold was saved alongside the models.
+        self.confidence_threshold = self.models.confidence_threshold or self.confidence_threshold
+        # Track the last bar we acted on so we process each H4 candle only once.
+        self.last_bar_time = None
         print("Models loaded successfully.")
 
     def run_cycle(self):
@@ -87,44 +76,33 @@ class LiveBot:
         df = pd.DataFrame(rates)
         df['time'] = pd.to_datetime(df['time'], unit='s')
         df.set_index('time', inplace=True)
-        
-        # 2. Compute Features
-        df['return'] = df['close'].pct_change().fillna(0)
-        df['volatility'] = calculate_yang_zhang(df, period=20).bfill()
-        df['atr'] = calculate_atr(df, period=14).bfill()
-        df['hurst'] = 0.5
-        df['ker'] = calculate_ker(df, period=10).bfill()
-        
-        # Get the absolute latest closed bar (index -2 to -1 to avoid repainting)
-        latest = df.iloc[-2:-1]
-        
-        # 3. Regime Prediction
-        regime_features = latest[['return', 'volatility']].values
-        regime_state = self.hmm.predict(regime_features)[0]
-        current_regime = "trend" if regime_state == 0 else "range"
-        
-        # 4. Primary Prediction
-        tree_features = latest[['return', 'volatility', 'hurst', 'ker']]
-        tree_probas = self.tree.predict(tree_features)[0]
-        
-        primary_signal = 0
-        if current_regime == "trend":
-            predicted_class = np.argmax(tree_probas)
-            primary_signal = -1 if predicted_class == 0 else (1 if predicted_class == 2 else 0)
-            
-        # 5. Meta-Learner Filter
-        p_correct = 0.0
+
+        # 2. Compute Features (shared with training/backtest)
+        df_feats = decision.compute_features(df)
+
+        # Act only on the last fully-closed bar (index -2 avoids the forming candle).
+        latest = df_feats.iloc[-2:-1]
+        bar_time = latest.index[0]
+
+        # Per-bar guard: process each H4 candle exactly once, even though the
+        # manager loop wakes every few minutes.
+        if self.last_bar_time is not None and bar_time == self.last_bar_time:
+            print(f"[{self.symbol}] Bar {bar_time} already processed this candle. Skipping.")
+            return
+        self.last_bar_time = bar_time
+
+        # 3-5. Regime + primary signal + meta confidence via the single shared path.
+        dec = decision.generate_decisions(self.models, latest, self.confidence_threshold)
+        primary_signal = int(dec['primary_signal'].iloc[0])
+        p_correct = float(dec['p_correct'].iloc[0])
+        final_signal = int(dec['final_signal'].iloc[0])
+        current_regime = dec['regime'].iloc[0]
+
         if primary_signal != 0:
-            meta_features = pd.DataFrame({
-                'primary_signal': [primary_signal],
-                'regime_trend': [1 if current_regime == 'trend' else 0],
-                'volatility': latest['volatility'].values
-            })
-            p_correct = self.meta.predict_proba(meta_features)[0][1]
-            print(f"[{self.symbol}] Primary: {'LONG' if primary_signal==1 else 'SHORT'} | Meta-Conf: {p_correct:.1%}")
-        
-        final_signal = primary_signal if p_correct >= self.confidence_threshold else 0
-        
+            print(f"[{self.symbol}] Regime: {current_regime} | "
+                  f"Primary: {'LONG' if primary_signal==1 else 'SHORT'} | "
+                  f"Meta-Conf: {p_correct:.1%} | Threshold: {self.confidence_threshold:.1%}")
+
         # 6. Position Management (Match Backtest Exact Logic)
         positions = mt5.positions_get(symbol=self.symbol)
         has_position = positions is not None and len(positions) > 0

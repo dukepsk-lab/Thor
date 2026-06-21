@@ -13,41 +13,35 @@ import threading
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-import joblib
 import numpy as np
 import pandas as pd
 import torch
 import MetaTrader5 as mt5
 
-from src.layers.l1_features.trend_memory import calculate_ker
-from src.layers.l1_features.volatility import calculate_yang_zhang, calculate_atr
-from src.layers.l3_primary_model.cnn_model import TemporalCNN
+from src.inference import decision
 
 TIMEFRAME = mt5.TIMEFRAME_H4
 PIP = {"EURUSD": 0.0001, "GBPUSD": 0.0001, "USDJPY": 0.01, "XAUUSD": 0.1}
+
+# Map the canonical router regime label to the dashboard's display vocabulary.
+_REGIME_DISPLAY = {
+    "state_0": "TREND", "state_1": "MEAN_REV", "state_2": "HIGH_VOL",
+    "trend": "TREND", "range": "MEAN_REV", "neutral": "MEAN_REV",
+}
 
 CIRCUIT_BREAKER_STATE_FILE = "data/circuit_breaker_state.json"
 
 
 class _SymbolEngine:
     def __init__(self, symbol: str):
-        model_dir = f"models/{symbol}"
-        self.hmm = joblib.load(f"{model_dir}/hmm_model.pkl")
-
-        import lightgbm as lgb
-        self.tree = lgb.Booster(model_file=f"{model_dir}/lgb_model.txt")
-
-        self.cnn = TemporalCNN(num_features=4, sequence_length=10, num_classes=3)
-        self.cnn.load_state_dict(torch.load(f"{model_dir}/cnn_model.pt", weights_only=True))
-        self.cnn.eval()
-
-        self.meta = joblib.load(f"{model_dir}/meta_model.pkl")
-
-        self.confidence_threshold = 0.5
-        param_file = f"{model_dir}/best_params_{symbol}.json"
-        if os.path.exists(param_file):
-            with open(param_file) as f:
-                self.confidence_threshold = json.load(f).get("confidence_threshold", 0.5)
+        # Shared loader: same models, same contract validation as live_bot/backtest.
+        m = decision.load_models(symbol, load_cnn=True)
+        self.symbol = symbol
+        self.hmm = m.hmm
+        self.tree = m.tree
+        self.cnn = m.cnn
+        self.meta = m.meta
+        self.confidence_threshold = m.confidence_threshold
 
         self.last_regime: Optional[str] = None
         self.regime_bars_held = 0
@@ -66,7 +60,12 @@ def _get_engine(symbol: str) -> Optional[_SymbolEngine]:
             return _engines[symbol]
         if not os.path.exists(f"models/{symbol}/hmm_model.pkl"):
             return None
-        engine = _SymbolEngine(symbol)
+        try:
+            engine = _SymbolEngine(symbol)
+        except (FileNotFoundError, TypeError) as e:
+            # Missing or outdated-format models: surface in logs, degrade gracefully.
+            print(f"[live_engine] Cannot load models for {symbol}: {e}")
+            return None
         _engines[symbol] = engine
         return engine
 
@@ -85,27 +84,25 @@ def compute_signal_state(symbol: str) -> Optional[dict]:
     df["time"] = pd.to_datetime(df["time"], unit="s")
     df.set_index("time", inplace=True)
 
-    df["return"] = df["close"].pct_change().fillna(0)
-    df["volatility"] = calculate_yang_zhang(df, period=20).bfill()
-    df["atr"] = calculate_atr(df, period=14).bfill()
-    df["hurst"] = 0.5
-    df["ker"] = calculate_ker(df, period=10).bfill()
+    df_feats = decision.compute_features(df)
 
     # second-to-last bar: the most recent fully-closed candle
-    latest = df.iloc[-2:-1]
+    latest = df_feats.iloc[-2:-1]
 
-    regime_state = engine.hmm.predict(latest[["return", "volatility"]].values)[0]
-    current_regime = "TREND" if regime_state == 0 else "MEAN_REV"
+    # Canonical decision -- identical to live_bot.run_cycle() and the backtest.
+    dec = decision.generate_decisions(engine, latest, engine.confidence_threshold)
+    primary_signal = int(dec["primary_signal"].iloc[0])
+    p_correct = float(dec["p_correct"].iloc[0])
+    current_regime = _REGIME_DISPLAY.get(dec["regime"].iloc[0], "MEAN_REV")
 
-    tree_probas = engine.tree.predict(latest[["return", "volatility", "hurst", "ker"]])[0]
+    # ---- Display-only model votes (cosmetic; not part of the trade decision) ----
+    tree_probas = decision._tree_probas(engine.tree, latest[decision.FEATURES_FLAT])[0]
     tree_class = int(np.argmax(tree_probas))
     tree_vote = "SHORT" if tree_class == 0 else ("LONG" if tree_class == 2 else "FLAT")
     tree_weight = float(tree_probas[tree_class])
 
-    # CNN reads the trailing 10-bar sequence window; only acted on by the
-    # live bot's risk gating indirectly via the regime, the tree model is
-    # what currently drives execution (see live_bot.py run_cycle()).
-    seq_window = df.iloc[-11:-1][["return", "volatility", "hurst", "ker"]].values
+    # CNN is untrained scaffolding; shown for display parity only, never traded on.
+    seq_window = df_feats.iloc[-11:-1][decision.FEATURES_FLAT].values
     cnn_vote, cnn_weight = "FLAT", 0.34
     if len(seq_window) == 10:
         x = torch.tensor(seq_window, dtype=torch.float32).T.unsqueeze(0)
@@ -114,19 +111,6 @@ def compute_signal_state(symbol: str) -> Optional[dict]:
         cnn_class = int(np.argmax(cnn_probas))
         cnn_vote = "SHORT" if cnn_class == 0 else ("LONG" if cnn_class == 2 else "FLAT")
         cnn_weight = float(cnn_probas[cnn_class])
-
-    primary_signal = 0
-    if current_regime == "TREND":
-        primary_signal = -1 if tree_class == 0 else (1 if tree_class == 2 else 0)
-
-    p_correct = 0.0
-    if primary_signal != 0:
-        meta_features = pd.DataFrame({
-            "primary_signal": [primary_signal],
-            "regime_trend": [1 if current_regime == "TREND" else 0],
-            "volatility": latest["volatility"].values,
-        })
-        p_correct = float(engine.meta.predict_proba(meta_features)[0][1])
 
     if engine.last_regime == current_regime:
         engine.regime_bars_held += 1
