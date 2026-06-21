@@ -1,0 +1,35 @@
+.equity-forecast-panel {
+  min-height: 240px;
+}
+
+.ef-chart {
+  flex: 1;
+  min-height: 0;
+}
+
+.ef-legend {
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+  margin-top: 6px;
+  font-size: var(--fs-micro);
+  color: var(--ink-dim);
+}
+
+.ef-legend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ef-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.ef-dot-history { background: var(--ink); }
+.ef-dot-best { background: var(--pos); }
+.ef-dot-normal { background: var(--ink-dim); }
+.ef-dot-worst { background: var(--neg); }

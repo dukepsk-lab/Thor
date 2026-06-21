@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   type AccountHealth,
+  type EquityForecast,
   type Pair,
   type Position,
   type PriceTile,
@@ -62,6 +63,10 @@ function emptySystem(): SystemHealth {
   return { mt5Connected: false, latencyMs: 0, vpsCpuPct: 0, vpsMemPct: 0, executionLog: [] };
 }
 
+function emptyEquityForecast(): EquityForecast {
+  return { history: [{ t: Date.now(), v: 0 }], forecast: { best: [], normal: [], worst: [] }, totalCommission: 0 };
+}
+
 interface LivePriceResponse {
   pair: Pair;
   bid: number;
@@ -109,6 +114,7 @@ export function useLiveFeed(): MockFeedState {
     risk: emptyRisk(),
     signals: {} as Record<Pair, SignalState>,
     system: emptySystem(),
+    equityForecast: emptyEquityForecast(),
     barCloseAt: nextH4BarClose(),
     now: Date.now(),
   }));
@@ -176,10 +182,11 @@ export function useLiveFeed(): MockFeedState {
     };
 
     const pollSlow = async () => {
-      const [riskRes, signalsRes, systemRes] = await Promise.all([
+      const [riskRes, signalsRes, systemRes, equityForecastRes] = await Promise.all([
         getJson<RiskState>('/api/risk/state'),
         getJson<Record<Pair, SignalState>>('/api/signals/state'),
         getJson<SystemHealth>('/api/system/health'),
+        getJson<EquityForecast>('/api/account/equity-history'),
       ]);
       if (cancelled) return;
 
@@ -188,6 +195,7 @@ export function useLiveFeed(): MockFeedState {
         risk: riskRes ?? prev.risk,
         signals: signalsRes ?? prev.signals,
         system: systemRes ?? prev.system,
+        equityForecast: equityForecastRes ?? prev.equityForecast,
         barCloseAt: nextH4BarClose(),
       }));
     };

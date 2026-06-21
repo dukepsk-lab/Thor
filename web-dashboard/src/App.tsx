@@ -4,6 +4,7 @@ import MarketStrip from './components/MarketStrip';
 import AccountHealth from './components/AccountHealth';
 import PositionsTable from './components/PositionsTable';
 import RiskLayer from './components/RiskLayer';
+import EquityForecastChart from './components/EquityForecastChart';
 import ModelState from './components/ModelState';
 import SystemHealth from './components/SystemHealth';
 import KillSwitch from './components/KillSwitch';
@@ -56,6 +57,9 @@ function Terminal({ feed }: { feed: MockFeedState }) {
         </div>
         <div className="area-risk">
           <RiskLayer risk={feed.risk} />
+        </div>
+        <div className="area-equity">
+          <EquityForecastChart data={feed.equityForecast} />
         </div>
         <div className="area-model">
           <ModelState signals={feed.signals} />

@@ -3,6 +3,7 @@ import {
   PAIRS,
   type AccountHealth,
   type EnsembleVote,
+  type EquityForecast,
   type Pair,
   type Position,
   type PriceTile,
@@ -123,8 +124,31 @@ export interface MockFeedState {
   risk: RiskState;
   signals: Record<Pair, SignalState>;
   system: SystemHealth;
+  equityForecast: EquityForecast;
   barCloseAt: number;
   now: number;
+}
+
+function makeEquityForecast(equityCurve: { t: number; v: number }[]): EquityForecast {
+  const days = 90;
+  const dayMs = 86_400_000;
+  const startV = equityCurve[0].v - rand(2000, 6000);
+  const history = Array.from({ length: days }, (_, i) => ({
+    t: Date.now() - (days - i) * dayMs,
+    v: startV + (equityCurve[equityCurve.length - 1].v - startV) * (i / days) + Math.sin(i / 5) * 250 + rand(-150, 150),
+  }));
+  const last = { t: Date.now(), v: equityCurve[equityCurve.length - 1].v };
+  history[history.length - 1] = last;
+
+  const forecast: EquityForecast['forecast'] = { best: [last], normal: [last], worst: [last] };
+  for (let i = 1; i <= 30; i++) {
+    const t = Date.now() + i * dayMs;
+    forecast.best.push({ t, v: last.v + i * rand(40, 90) });
+    forecast.normal.push({ t, v: last.v + i * rand(-5, 15) });
+    forecast.worst.push({ t, v: last.v - i * rand(30, 70) });
+  }
+
+  return { history, forecast, totalCommission: rand(180, 640) };
 }
 
 function initState(): MockFeedState {
@@ -186,6 +210,7 @@ function initState(): MockFeedState {
         { t: Date.now() - 240_000, msg: 'XAUUSD spread 5.8 pips — above threshold', level: 'warn' },
       ],
     },
+    equityForecast: makeEquityForecast(equityCurve),
     barCloseAt: nextH4BarClose(),
     now: Date.now(),
   };

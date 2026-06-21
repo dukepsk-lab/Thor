@@ -90,3 +90,18 @@ export interface SystemHealth {
   vpsMemPct: number;
   executionLog: { t: number; msg: string; level: 'info' | 'warn' | 'error' }[];
 }
+
+export interface EquityPoint {
+  t: number;
+  v: number;
+}
+
+export interface EquityForecast {
+  history: EquityPoint[];
+  forecast: {
+    best: EquityPoint[];
+    normal: EquityPoint[];
+    worst: EquityPoint[];
+  };
+  totalCommission: number;
+}

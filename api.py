@@ -191,6 +191,60 @@ def get_live_account():
         "leverage_used": round((info.equity - info.margin_free) / info.equity, 2) if info.equity else 0.0,
     }
 
+@app.get("/api/account/equity-history")
+def get_equity_history():
+    empty = {"history": [], "forecast": {"best": [], "normal": [], "worst": []}, "totalCommission": 0.0}
+    if not ensure_mt5():
+        return empty
+
+    info = mt5.account_info()
+    if info is None:
+        return empty
+
+    to_date = datetime.now()
+    deals = sorted(mt5.history_deals_get(datetime(2000, 1, 1), to_date) or [], key=lambda d: d.time)
+    total_commission = round(sum(d.commission for d in deals), 2)
+
+    if not deals:
+        now_ms = int(to_date.timestamp() * 1000)
+        return {
+            "history": [{"t": now_ms, "v": round(info.equity, 2)}],
+            "forecast": {"best": [], "normal": [], "worst": []},
+            "totalCommission": total_commission,
+        }
+
+    net_total = sum(d.profit + d.commission + d.swap for d in deals)
+    running = info.balance - net_total
+    history = []
+    for d in deals:
+        running += d.profit + d.commission + d.swap
+        history.append({"t": int(d.time) * 1000, "v": round(running, 2)})
+    history.append({"t": int(to_date.timestamp() * 1000), "v": round(info.equity, 2)})
+
+    daily_pnl: Dict[str, float] = {}
+    for d in deals:
+        day = datetime.fromtimestamp(d.time).strftime("%Y-%m-%d")
+        daily_pnl[day] = daily_pnl.get(day, 0.0) + d.profit + d.commission + d.swap
+    samples = list(daily_pnl.values())
+
+    last_point = {"t": int(to_date.timestamp() * 1000), "v": round(info.equity, 2)}
+    forecast = {"best": [last_point], "normal": [last_point], "worst": [last_point]}
+
+    if len(samples) >= 5:
+        n_sims, n_days = 500, 30
+        draws = np.random.choice(samples, size=(n_sims, n_days), replace=True)
+        paths = info.equity + np.cumsum(draws, axis=1)
+        best = np.percentile(paths, 90, axis=0)
+        normal = np.percentile(paths, 50, axis=0)
+        worst = np.percentile(paths, 10, axis=0)
+        for i in range(n_days):
+            t_ms = int((to_date + timedelta(days=i + 1)).timestamp() * 1000)
+            forecast["best"].append({"t": t_ms, "v": round(float(best[i]), 2)})
+            forecast["normal"].append({"t": t_ms, "v": round(float(normal[i]), 2)})
+            forecast["worst"].append({"t": t_ms, "v": round(float(worst[i]), 2)})
+
+    return {"history": history, "forecast": forecast, "totalCommission": total_commission}
+
 @app.get("/api/live/positions")
 def get_live_positions():
     if not ensure_mt5():
