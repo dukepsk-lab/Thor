@@ -136,11 +136,28 @@ def generate_forecast(data: MultiConfigModel):
 # ==========================================
 
 import MetaTrader5 as mt5
+from src.core.config import settings
+
+_mt5_connected = False
 
 def ensure_mt5():
-    if not mt5.initialize():
-        print("MT5 initialization failed in API")
+    global _mt5_connected
+    if _mt5_connected:
+        info = mt5.terminal_info()
+        if info is not None and info.connected:
+            return True
+        _mt5_connected = False
+
+    initialized = mt5.initialize(
+        path=settings.MT5_PATH,
+        login=settings.MT5_LOGIN,
+        password=settings.MT5_PASSWORD,
+        server=settings.MT5_SERVER,
+    )
+    if not initialized:
+        print(f"MT5 initialization failed in API, error code: {mt5.last_error()}")
         return False
+    _mt5_connected = True
     return True
 
 @app.get("/api/live/account")

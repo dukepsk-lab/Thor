@@ -299,7 +299,13 @@ def get_risk_state(symbols: List[str], daily_loss_limit_pct: float = 5.0, max_dr
 
 
 def get_system_health() -> dict:
-    connected = mt5.initialize()
+    from src.core.config import settings
+    connected = mt5.initialize(
+        path=settings.MT5_PATH,
+        login=settings.MT5_LOGIN,
+        password=settings.MT5_PASSWORD,
+        server=settings.MT5_SERVER,
+    )
     latency_ms = 0.0
     if connected:
         start = time.perf_counter()
