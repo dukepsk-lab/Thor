@@ -325,14 +325,18 @@ def get_live_history():
 
 @app.get("/api/stats")
 def get_stats():
-    return {
-        "annual_return": "42.7%", # Updated to match recent backtest logic
-        "max_drawdown": "-5.4%",
-        "sharpe_ratio": 1.65,
-        "win_rate": "62.2%",
-        "profit_factor": 1.9,
-        "total_trades": 540
-    }
+    # Real metrics are written by backtest_single_symbol.py. We never fabricate
+    # numbers: if no backtest has been run, say so explicitly.
+    stats_path = "data/backtest_stats.json"
+    if not os.path.exists(stats_path):
+        return {
+            "available": False,
+            "message": "No backtest results yet. Run backtest_single_symbol.py to generate real out-of-sample metrics.",
+        }
+    with open(stats_path) as f:
+        data = json.load(f)
+    data["available"] = True
+    return data
 
 # ==========================================
 # TERMINAL DASHBOARD ENDPOINTS (real data)

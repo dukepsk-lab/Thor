@@ -5,7 +5,7 @@ import sklearn
 import pandas as pd
 import numpy as np
 import torch
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from src.layers.l0_ingestion.mt5_client import mt5_client
 from src.layers.l1_features.trend_memory import calculate_ker
@@ -62,7 +62,18 @@ def main():
     if df is None or df.empty:
         print("Data fetch failed.")
         return
-        
+
+    # Hold out the most recent HOLDOUT_DAYS so the backtest is genuinely
+    # out-of-sample (the model never sees the bars it is later evaluated on).
+    holdout_cutoff = datetime.now() - timedelta(days=decision.HOLDOUT_DAYS)
+    df = df[df.index < pd.Timestamp(holdout_cutoff)]
+    print(f"Training on data before {holdout_cutoff.date()} "
+          f"(last {decision.HOLDOUT_DAYS} days held out for out-of-sample backtest). "
+          f"{len(df)} training bars.")
+    if df.empty:
+        print("No training data remains after applying holdout window.")
+        return
+
     # 3. Features
     print("Computing features...")
     df['return'] = df['close'].pct_change().fillna(0)
@@ -134,7 +145,8 @@ def main():
         'symbol': target_symbol,
         'trained_at': datetime.now().isoformat(timespec='seconds'),
         'train_start': '2023-01-01',
-        'train_end': datetime.now().strftime('%Y-%m-%d'),
+        'train_end': holdout_cutoff.strftime('%Y-%m-%d'),
+        'holdout_days': decision.HOLDOUT_DAYS,
         'n_train_rows': int(len(df)),
         'sklearn_version': sklearn.__version__,
         'meta_feature_columns': list(meta.feature_columns_),

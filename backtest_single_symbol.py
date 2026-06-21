@@ -8,6 +8,50 @@ import matplotlib.pyplot as plt
 
 from src.layers.l0_ingestion.mt5_client import mt5_client
 from src.layers.l8_monitoring.backtest.predictor import SymbolPredictor
+from src.layers.l8_monitoring.validation.metrics import evaluate_strategy
+from src.inference import decision
+
+SPREAD_BPS = 1.0   # per-trade spread assumption used for reported metrics
+COMM_BPS = 0.5     # per-trade commission assumption
+
+
+def compute_and_save_stats(per_symbol: dict, out_path: str = "data/backtest_stats.json"):
+    """
+    Aggregate per-symbol (target_position, return) series into honest, real
+    portfolio metrics and persist them for /api/stats. Replaces the old
+    hardcoded placeholder numbers.
+    """
+    targets = pd.concat([t for t, _ in per_symbol.values()])
+    returns = pd.concat([r for _, r in per_symbol.values()])
+
+    m = evaluate_strategy(targets, returns, spread_bps=SPREAD_BPS, comm_bps=COMM_BPS).get('strat_net', {})
+
+    # Per-bar net strategy returns for win rate / profit factor / trade count.
+    gross = targets.shift(1) * returns
+    trades = targets.diff().abs().fillna(0)
+    net = (gross - trades * ((SPREAD_BPS + COMM_BPS) / 10000.0)).dropna()
+    active = net[net != 0]
+    wins, losses = active[active > 0], active[active < 0]
+    win_rate = len(wins) / len(active) if len(active) else 0.0
+    profit_factor = wins.sum() / abs(losses.sum()) if losses.sum() != 0 else 0.0
+
+    stats = {
+        "generated_at": datetime.now().isoformat(timespec='seconds'),
+        "annual_return": f"{m.get('Ann Return', 0) * 100:.1f}%",
+        "max_drawdown": f"{m.get('Max Drawdown', 0) * 100:.1f}%",
+        "sharpe_ratio": round(m.get('Sharpe', 0), 2),
+        "win_rate": f"{win_rate * 100:.1f}%",
+        "profit_factor": round(float(profit_factor), 2),
+        "total_trades": int(trades.sum()),
+        "sample": f"out-of-sample (last {decision.HOLDOUT_DAYS} days, excluded from training)",
+        "costs_modeled": f"spread {SPREAD_BPS}bps + commission {COMM_BPS}bps per trade; swap/overnight NOT modeled",
+        "symbols": list(per_symbol.keys()),
+    }
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w") as f:
+        json.dump(stats, f, indent=2)
+    print(f"\n[stats] Saved real backtest metrics to {out_path}:\n{json.dumps(stats, indent=2)}")
+    return stats
 
 def load_threshold(symbol):
     path = f'models/{symbol}/best_params_{symbol}.json'
@@ -67,13 +111,16 @@ def run_single_backtests():
     if not mt5_client.connect():
         raise ConnectionError("Failed to connect to MT5.")
         
-    # 3 months = approx 95 days
-    start_date = datetime.now() - timedelta(days=95) # padding
+    # Out-of-sample window: the same HOLDOUT_DAYS that train_and_save excluded,
+    # plus padding so rolling features have warm-up history.
+    start_date = datetime.now() - timedelta(days=decision.HOLDOUT_DAYS + 30)
+    oos_start = datetime.now() - timedelta(days=decision.HOLDOUT_DAYS)
     end_date = datetime.now()
-    
+
     plt.figure(figsize=(12, 6))
-    
+
     equities = {}
+    per_symbol_stats = {}
     common_idx = None
     
     # We will simulate allocating $333.33 (1/3 of $1000) to each asset independently
@@ -88,15 +135,23 @@ def run_single_backtests():
             
         predictor = SymbolPredictor(sym)
         df_pred = predictor.generate_predictions(df_raw)
-        
-        # Take the last 390 bars (~3 months)
-        df_test = df_pred.iloc[-390:]
-        
+
+        # Restrict to the out-of-sample window (bars excluded from training).
+        df_test = df_pred[df_pred.index >= pd.Timestamp(oos_start)]
+        if df_test.empty:
+            print(f"Skipping {sym}, no out-of-sample bars.")
+            continue
+
         dates, equity = simulate_single_asset(df_test, sym, initial_balance=initial_alloc)
-        
+
+        # Collect target positions + returns for honest aggregate metrics.
+        threshold = load_threshold(sym)
+        target = df_test['signal'].where(df_test['confidence'] >= threshold, 0).astype(float)
+        per_symbol_stats[sym] = (target, df_test['return'])
+
         if common_idx is None:
             common_idx = dates
-            
+
         equities[sym] = equity
         
         final_balance = equity[-1]
@@ -128,6 +183,10 @@ def run_single_backtests():
     plt.tight_layout()
     plt.savefig('combined_portfolio_equity.png', dpi=300)
     print("\nSaved graph to 'combined_portfolio_equity.png'")
+
+    # Persist real metrics for /api/stats (replaces the old hardcoded numbers).
+    if per_symbol_stats:
+        compute_and_save_stats(per_symbol_stats)
 
 if __name__ == "__main__":
     run_single_backtests()

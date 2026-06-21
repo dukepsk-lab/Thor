@@ -24,6 +24,11 @@ from src.layers.l5_meta_model.meta_learner import MetaLearner
 # Flat feature set fed to the LightGBM tree (order matters).
 FEATURES_FLAT = ['return', 'volatility', 'hurst', 'ker']
 
+# The most recent N days are held out of training and used as the out-of-sample
+# backtest window, so reported backtest metrics are never measured on data the
+# models were trained on. Shared by train_and_save.py and the backtester.
+HOLDOUT_DAYS = 90
+
 
 def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     """Canonical feature computation shared by every code path."""
