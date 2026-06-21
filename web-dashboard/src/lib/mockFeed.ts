@@ -181,6 +181,8 @@ function initState(): MockFeedState {
       equityCurve,
       realizedPnl: 842.3,
       unrealizedPnl: -126.4,
+      commission: 64.2,
+      winRatePct: 58.4,
       dailyPnl: 715.9,
       weeklyPnl: 2310.5,
       mtdPnl: 6120.8,

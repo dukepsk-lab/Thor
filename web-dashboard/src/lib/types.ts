@@ -24,6 +24,8 @@ export interface AccountHealth {
   equityCurve: { t: number; v: number }[];
   realizedPnl: number;
   unrealizedPnl: number;
+  commission: number;
+  winRatePct: number;
   dailyPnl: number;
   weeklyPnl: number;
   mtdPnl: number;

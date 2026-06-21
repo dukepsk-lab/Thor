@@ -175,6 +175,11 @@ def get_live_account():
     weekly_pnl = sum(d.profit for d in deals if datetime.fromtimestamp(d.time) >= now - timedelta(days=7))
     mtd_pnl = sum(d.profit for d in deals if datetime.fromtimestamp(d.time).month == now.month and datetime.fromtimestamp(d.time).year == now.year)
     realized_pnl_30d = sum(d.profit for d in deals if datetime.fromtimestamp(d.time) >= now - timedelta(days=30))
+    commission_30d = sum(d.commission for d in deals if datetime.fromtimestamp(d.time) >= now - timedelta(days=30))
+
+    closes_30d = [d for d in deals if d.entry == mt5.DEAL_ENTRY_OUT and datetime.fromtimestamp(d.time) >= now - timedelta(days=30)]
+    wins_30d = sum(1 for d in closes_30d if d.profit > 0)
+    win_rate_30d = round(100 * wins_30d / len(closes_30d), 1) if closes_30d else 0.0
 
     return {
         "balance": info.balance,
@@ -183,6 +188,8 @@ def get_live_account():
         "margin_level": getattr(info, 'margin_level', 0.0),
         "profit": info.profit,
         "realized_pnl_30d": round(realized_pnl_30d, 2),
+        "commission_30d": round(commission_30d, 2),
+        "win_rate_30d": win_rate_30d,
         "daily_pnl": round(daily_pnl, 2),
         "weekly_pnl": round(weekly_pnl, 2),
         "mtd_pnl": round(mtd_pnl, 2),

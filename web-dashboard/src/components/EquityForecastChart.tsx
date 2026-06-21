@@ -34,7 +34,6 @@ export default function EquityForecastChart({ data }: { data: EquityForecast }) 
     <div className="panel equity-forecast-panel">
       <div className="panel-head">
         <span className="panel-title">Equity History &amp; 30D Forecast</span>
-        <span className="label">commission paid <span className="mono">${data.totalCommission.toFixed(2)}</span></span>
       </div>
       <div className="ef-chart">
         <ResponsiveContainer width="100%" height="100%">

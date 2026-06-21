@@ -37,6 +37,8 @@ function emptyAccount(): AccountHealth {
     equityCurve: [{ t: Date.now(), v: 0 }],
     realizedPnl: 0,
     unrealizedPnl: 0,
+    commission: 0,
+    winRatePct: 0,
     dailyPnl: 0,
     weeklyPnl: 0,
     mtdPnl: 0,
@@ -83,6 +85,8 @@ interface LiveAccountResponse {
   margin_level: number;
   profit: number;
   realized_pnl_30d: number;
+  commission_30d: number;
+  win_rate_30d: number;
   daily_pnl: number;
   weekly_pnl: number;
   mtd_pnl: number;
@@ -150,6 +154,8 @@ export function useLiveFeed(): MockFeedState {
             equityCurve: equityHistory.current,
             realizedPnl: accountRes.realized_pnl_30d,
             unrealizedPnl: accountRes.profit,
+            commission: accountRes.commission_30d,
+            winRatePct: accountRes.win_rate_30d,
             dailyPnl: accountRes.daily_pnl,
             weeklyPnl: accountRes.weekly_pnl,
             mtdPnl: accountRes.mtd_pnl,

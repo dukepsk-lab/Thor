@@ -40,9 +40,10 @@
 .terminal-grid {
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
   display: grid;
   grid-template-columns: 340px 1fr 320px;
-  grid-template-rows: auto minmax(0, 1fr) minmax(240px, auto) auto auto;
+  grid-template-rows: auto minmax(380px, auto) minmax(240px, auto) auto auto;
   grid-template-areas:
     'market market market'
     'account positions risk'
@@ -67,7 +68,7 @@
 @media (max-width: 1300px) {
   .terminal-grid {
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto auto minmax(260px, auto) minmax(240px, auto) minmax(320px, auto) auto;
+    grid-template-rows: auto minmax(380px, auto) minmax(260px, auto) minmax(240px, auto) minmax(320px, auto) auto;
     grid-template-areas:
       'market market'
       'account risk'

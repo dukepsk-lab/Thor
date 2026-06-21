@@ -57,6 +57,14 @@ export default function AccountHealth({ account }: { account: AccountHealthT }) 
           <div className={`mono pnl-val ${pnlClass(account.unrealizedPnl)}`}>{account.unrealizedPnl >= 0 ? '+' : ''}{fmt(account.unrealizedPnl)}</div>
         </div>
         <div className="pnl-cell">
+          <div className="label">Win rate</div>
+          <div className="mono pnl-val">{account.winRatePct.toFixed(1)}%</div>
+        </div>
+        <div className="pnl-cell">
+          <div className="label">Commission</div>
+          <div className="mono pnl-val neg">-{fmt(account.commission)}</div>
+        </div>
+        <div className="pnl-cell">
           <div className="label">Daily</div>
           <div className={`mono pnl-val ${pnlClass(account.dailyPnl)}`}>{account.dailyPnl >= 0 ? '+' : ''}{fmt(account.dailyPnl)}</div>
         </div>
