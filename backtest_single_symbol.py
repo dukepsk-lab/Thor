@@ -101,7 +101,7 @@ def simulate_single_asset(df, symbol, initial_balance=1000.0):
 
 def run_single_backtests():
     print("=== Single Asset & Equal-Weight Portfolio Backtester (No PPO) ===")
-    symbols = ['EURUSD', 'USDJPY', 'XAUUSD']
+    symbols = ['EURUSD', 'USDJPY', 'XAUUSD', 'GBPUSD']
     
     if not mt5_client.connect():
         raise ConnectionError("Failed to connect to MT5.")
