@@ -20,7 +20,10 @@ import argparse
 
 parser = argparse.ArgumentParser(description="Optimize ML Pipeline")
 parser.add_argument('--symbol', type=str, default='EURUSD', help='Symbol to optimize (e.g., EURUSD, USDJPY, XAUUSD)')
-parser.add_argument('--trials', type=int, default=1000, help='Number of Optuna trials')
+parser.add_argument('--trials', type=int, default=200,
+                     help='Number of Optuna trials. Kept low by default: with only a few thousand '
+                          'H4 bars and 3-fold CV, more trials increase the risk of curve-fitting to '
+                          'fold noise rather than finding a real edge (see validation step below).')
 parser.add_argument('--gpu', action='store_true',
                      help='Use GPU for LightGBM during tuning. Requires a GPU-enabled LightGBM build '
                           '(the default pip wheel is CPU-only). Falls back to CPU automatically if GPU init fails. '
@@ -53,6 +56,17 @@ print(f"Tuning on data before {holdout_cutoff.date()} "
 # Engineer Features (identical to decision.compute_features)
 df_global = decision.compute_features(df_global)
 df_global = df_global.dropna()
+
+# Carve out a validation slice that the Optuna search itself never sees. Optuna runs
+# many trials and reports whichever one fit the CV folds best -- with this little data
+# that is a multiple-comparisons setup: the "best" trial is liable to be the one that
+# fit fold noise, not a real edge. Evaluating the chosen params once on this untouched
+# slice (after the search is done) is the only way to tell the difference.
+_val_split = int(len(df_global) * 0.8)
+tune_df = df_global.iloc[:_val_split]
+val_df = df_global.iloc[_val_split:]
+print(f"Tuning search uses {len(tune_df)} bars (through {tune_df.index.max().date()}); "
+      f"{len(val_df)} bars from {val_df.index.min().date()} held out for post-search validation.")
 
 FEATURES_FLAT = decision.FEATURES_FLAT
 
@@ -92,7 +106,7 @@ def objective(trial):
 
     confidence_threshold = trial.suggest_float('confidence_threshold', 0.45, 0.65)
 
-    df = df_global.copy()
+    df = tune_df.copy()
 
     labels = apply_triple_barrier(df, atr_multiplier_tp=tp_multiplier, atr_multiplier_sl=sl_multiplier, vertical_bars=10)
     df['label'] = labels['label'].fillna(0)
@@ -140,8 +154,15 @@ def objective(trial):
         # fold. Fitting and predicting on the same fold (as the old code did) leaks the
         # test fold's own labels into its confidence estimate, inflating the reported
         # Sharpe and picking thresholds that do not generalize.
+        # Meta-learner's internal calibration CV needs >=5 examples of both outcome
+        # classes in the train fold; with a smaller tune_df (carved out of df_global
+        # for the validation split below) a fold can occasionally be too sparse for
+        # this. Skip just that fold rather than crashing the whole Optuna study.
         meta = MetaLearner()
         actual_outcomes_train = (primary_train == train_df['label']).astype(int)
+        class_counts = actual_outcomes_train.value_counts()
+        if len(class_counts) < 2 or class_counts.min() < 5:
+            continue
         meta.fit(primary_train, train_regimes, train_df['volatility'], actual_outcomes_train)
 
         p_correct = meta.predict_trust_probability(primary_test, test_regimes, test_df['volatility'])
@@ -160,6 +181,53 @@ def objective(trial):
     return metrics['strat_net']['Sharpe']
 
 
+def validate_best_params(best_params: dict) -> float:
+    """
+    Fully retrain (no CV, mirroring train_and_save.py) on tune_df with the search's
+    chosen params, then evaluate once on val_df -- data the search never touched.
+    Returns the validation Sharpe; this is the honest check on whether the "best"
+    trial found a real edge or just fit fold noise.
+    """
+    df = tune_df.copy()
+    labels = apply_triple_barrier(
+        df, atr_multiplier_tp=best_params['tp_multiplier'],
+        atr_multiplier_sl=best_params['sl_multiplier'], vertical_bars=10,
+    )
+    df['label'] = labels['label'].fillna(0)
+    df['t1'] = labels['t1']
+    df = df.dropna()
+
+    lgb_params = {
+        'objective': 'multiclass', 'num_class': 3, 'metric': 'multi_logloss',
+        'boosting_type': 'gbdt', 'learning_rate': best_params['learning_rate'],
+        'max_depth': best_params['tree_depth'], 'n_estimators': best_params['n_estimators'],
+        'verbose': -1,
+    }
+    if USE_GPU:
+        lgb_params['device_type'] = 'gpu'
+
+    hmm = RegimeHMM(n_components=3, random_state=42)
+    hmm.fit(df[['return', 'volatility']])
+    tune_regimes = decision.compute_regime(hmm, df)
+
+    y_tune_tree = df['label'].map({-1: 0, 0: 1, 1: 2})
+    tree = _fit_tree(lgb_params, df[FEATURES_FLAT], y_tune_tree)
+    primary_tune = decision.compute_primary_signal(tree, df)
+
+    meta = MetaLearner()
+    actual_outcomes_tune = (primary_tune == df['label']).astype(int)
+    meta.fit(primary_tune, tune_regimes, df['volatility'], actual_outcomes_tune)
+
+    val_regimes = decision.compute_regime(hmm, val_df)
+    primary_val = decision.compute_primary_signal(tree, val_df)
+    p_correct_val = meta.predict_trust_probability(primary_val, val_regimes, val_df['volatility'])
+    p_correct_val = pd.Series(np.asarray(p_correct_val), index=val_df.index)
+
+    final_signal_val = primary_val.where(p_correct_val >= best_params['confidence_threshold'], 0)
+    val_metrics = evaluate_strategy(final_signal_val, val_df['return'])
+    return val_metrics['strat_net']['Sharpe']
+
+
 if __name__ == "__main__":
     print(f"=== Starting Optuna Hyperparameter Optimization ({args.trials} trials, GPU={'on' if USE_GPU else 'off'}) ===")
     study = optuna.create_study(direction="maximize")
@@ -167,12 +235,25 @@ if __name__ == "__main__":
 
     print("\nOptimization Finished.")
     print("Best Trial:")
-    print("  Sharpe Ratio:", study.best_value)
+    print("  CV Sharpe Ratio:", study.best_value)
     print("  Params:")
     for key, value in study.best_params.items():
         print(f"    {key}: {value}")
 
+    print("\nValidating best params on held-out slice the search never saw...")
+    validation_sharpe = validate_best_params(study.best_params)
+    print(f"  Validation Sharpe ({val_df.index.min().date()} to {val_df.index.max().date()}): {validation_sharpe:.3f}")
+    if validation_sharpe <= 0:
+        print(f"[WARNING] Validation Sharpe is non-positive. These params likely do NOT generalize "
+              f"-- the CV Sharpe above ({study.best_value:.3f}) may just be fit to fold noise. "
+              f"Do not trust these params for live trading without further investigation.")
+
+    output = dict(study.best_params)
+    output['validation_sharpe'] = validation_sharpe
+    output['validation_window'] = f"{val_df.index.min().date()} to {val_df.index.max().date()}"
+    output['cv_sharpe'] = study.best_value
+
     best_file = f'best_params_{target_symbol}.json'
     with open(best_file, 'w') as f:
-        json.dump(study.best_params, f, indent=4)
+        json.dump(output, f, indent=4)
     print(f"\n[SUCCESS] Best parameters saved to {best_file}!")

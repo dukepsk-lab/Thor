@@ -34,7 +34,9 @@ def run(cmd, log):
 def main():
     parser = argparse.ArgumentParser(description="Tune, train, and backtest all symbols in one run.")
     parser.add_argument('--symbols', nargs='+', default=DEFAULT_SYMBOLS)
-    parser.add_argument('--trials', type=int, default=1000, help='Optuna trials per symbol')
+    parser.add_argument('--trials', type=int, default=200,
+                         help='Optuna trials per symbol. Kept low by default: see optimize_pipeline.py '
+                              '--trials help for why more trials raise overfitting risk on this little data.')
     parser.add_argument('--gpu', action='store_true', help='Pass --gpu through to optimize_pipeline.py')
     parser.add_argument('--skip-tune', action='store_true',
                          help='Skip optimize_pipeline.py, reuse existing best_params_<symbol>.json')
