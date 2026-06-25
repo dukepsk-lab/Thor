@@ -181,12 +181,16 @@ def objective(trial):
     return metrics['strat_net']['Sharpe']
 
 
-def validate_best_params(best_params: dict) -> float:
+def validate_best_params(best_params: dict) -> dict:
     """
     Fully retrain (no CV, mirroring train_and_save.py) on tune_df with the search's
     chosen params, then evaluate once on val_df -- data the search never touched.
-    Returns the validation Sharpe; this is the honest check on whether the "best"
-    trial found a real edge or just fit fold noise.
+    Returns {'sharpe': ..., 'n_trades': ...}; this is the honest check on whether the
+    "best" trial found a real edge or just fit fold noise. n_trades matters because a
+    Sharpe of exactly 0.0 is ambiguous -- evaluate_strategy() returns 0.0 whenever
+    return volatility is zero, which is what happens when the confidence threshold
+    filters out every single signal on val_df (zero trades), not just when trades
+    were taken and broke even.
     """
     df = tune_df.copy()
     labels = apply_triple_barrier(
@@ -225,7 +229,8 @@ def validate_best_params(best_params: dict) -> float:
 
     final_signal_val = primary_val.where(p_correct_val >= best_params['confidence_threshold'], 0)
     val_metrics = evaluate_strategy(final_signal_val, val_df['return'])
-    return val_metrics['strat_net']['Sharpe']
+    n_trades_val = int((final_signal_val != 0).sum())
+    return {'sharpe': val_metrics['strat_net']['Sharpe'], 'n_trades': n_trades_val}
 
 
 if __name__ == "__main__":
@@ -241,15 +246,26 @@ if __name__ == "__main__":
         print(f"    {key}: {value}")
 
     print("\nValidating best params on held-out slice the search never saw...")
-    validation_sharpe = validate_best_params(study.best_params)
-    print(f"  Validation Sharpe ({val_df.index.min().date()} to {val_df.index.max().date()}): {validation_sharpe:.3f}")
-    if validation_sharpe <= 0:
+    validation_result = validate_best_params(study.best_params)
+    validation_sharpe = validation_result['sharpe']
+    validation_n_trades = validation_result['n_trades']
+    print(f"  Validation Sharpe ({val_df.index.min().date()} to {val_df.index.max().date()}): "
+          f"{validation_sharpe:.3f} over {validation_n_trades} trades")
+    if validation_n_trades == 0:
+        print(f"[WARNING] Validation took ZERO trades -- the confidence threshold "
+              f"({study.best_params['confidence_threshold']:.3f}) filtered out every signal on the "
+              f"validation slice, so the Sharpe of 0.000 above is uninformative noise, not evidence "
+              f"that the edge is real or fake. The CV Sharpe ({study.best_value:.3f}) tells you nothing "
+              f"about generalization here -- investigate the meta-learner's confidence calibration or "
+              f"threshold before trusting these params.")
+    elif validation_sharpe <= 0:
         print(f"[WARNING] Validation Sharpe is non-positive. These params likely do NOT generalize "
               f"-- the CV Sharpe above ({study.best_value:.3f}) may just be fit to fold noise. "
               f"Do not trust these params for live trading without further investigation.")
 
     output = dict(study.best_params)
     output['validation_sharpe'] = validation_sharpe
+    output['validation_n_trades'] = validation_n_trades
     output['validation_window'] = f"{val_df.index.min().date()} to {val_df.index.max().date()}"
     output['cv_sharpe'] = study.best_value
 
