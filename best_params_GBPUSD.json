@@ -1,8 +1,12 @@
 {
-    "tp_multiplier": 1.3264284224466982,
-    "sl_multiplier": 2.083662236506308,
-    "tree_depth": 4,
-    "learning_rate": 0.017691914559333347,
-    "n_estimators": 150,
-    "confidence_threshold": 0.5800638611255994
+    "tp_multiplier": 1.105138914477708,
+    "sl_multiplier": 2.595896375951757,
+    "tree_depth": 6,
+    "learning_rate": 0.012973080155284047,
+    "n_estimators": 50,
+    "confidence_threshold": 0.48775842790231255,
+    "validation_sharpe": -0.08697292846942088,
+    "validation_n_trades": 1035,
+    "validation_window": "2025-08-04 to 2026-03-27",
+    "cv_sharpe": 0.5215026179401667
 }

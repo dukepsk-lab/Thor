@@ -1,0 +1,23 @@
+{
+  "symbol": "EURUSD",
+  "trained_at": "2026-06-25T07:52:46",
+  "train_start": "2023-01-01",
+  "train_end": "2026-03-27",
+  "holdout_days": 90,
+  "n_train_rows": 5174,
+  "sklearn_version": "1.6.0",
+  "meta_feature_columns": [
+    "primary_signal",
+    "volatility",
+    "regime_state_0",
+    "regime_state_1",
+    "regime_state_2"
+  ],
+  "features_flat": [
+    "return",
+    "volatility",
+    "hurst",
+    "ker"
+  ],
+  "primary_producer": "tree_only"
+}
