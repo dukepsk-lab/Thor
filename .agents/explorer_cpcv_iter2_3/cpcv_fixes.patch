@@ -1,0 +1,360 @@
+diff --git a/validation_harness/cpcv.py b/validation_harness/cpcv.py
+index a2d9b9a..b3c9c9b 100644
+--- a/validation_harness/cpcv.py
++++ b/validation_harness/cpcv.py
+@@ -100,7 +100,8 @@ class CombinatorialPurgedKFold:
+             X_index_dt = X.index
+             
+         t_start = pd.Series(X_index_dt, index=original_idx)
+-        t_hit = pd.Series(pd.to_datetime(pred_times.values), index=original_idx)
++        pred_times_aligned = pred_times.reindex(X.index)
++        t_hit = pd.Series(pd.to_datetime(pred_times_aligned.values), index=original_idx)
+         t_hit = t_hit.fillna(t_start)  # Fallback if NaT
+         
+         # Sort by start time for contiguous partitioning in time
+@@ -130,14 +131,14 @@ class CombinatorialPurgedKFold:
+             test_idx_list = []
+             for part_idx in test_part_idxs:
+                 test_idx_list.extend(partitions[part_idx])
+-            test_idx = np.array(sorted(test_idx_list))
++            test_idx = np.array(sorted(test_idx_list), dtype=np.int64)
+             
+             # Convert start and hit Series to numpy arrays for fast vectorized operations
+             t_start_arr = t_start_sorted.values
+             t_hit_arr = t_hit_sorted.values
+             
+             # Initial train indices in sorted-order positions
+-            train_idx_arr = np.array([i for i in range(M) if i not in test_idx])
++            train_idx_arr = np.array([i for i in range(M) if i not in test_idx], dtype=np.int64)
+             
+             # Apply purging/embargoing for each test partition
+             for part_idx in test_part_idxs:
+@@ -145,8 +146,8 @@ class CombinatorialPurgedKFold:
+                 if len(part_indices) == 0:
+                     continue
+                 
+-                t_start_min = t_start_sorted.iloc[part_indices].min()
+-                t_hit_max = t_hit_sorted.iloc[part_indices].max()
++                t_start_min = pd.Timestamp(t_start_arr[part_indices].min())
++                t_hit_max = pd.Timestamp(t_hit_arr[part_indices].max())
+                 
+                 # Embargo boundary
+                 t_embargo = self._get_embargo_boundary(t_hit_max, reference_index)
+diff --git a/validation_harness/tests/conftest.py b/validation_harness/tests/conftest.py
+index c2d9b9a..d3c9c9b 100644
+--- a/validation_harness/tests/conftest.py
++++ b/validation_harness/tests/conftest.py
+@@ -52,253 +52,6 @@ mock_mt5_instance = MockMetaTrader5()
+ sys.modules['MetaTrader5'] = mock_mt5_instance
+ 
+ 
+-# --- Define Stub Implementations ---
+-
+-# 1. Ingestion Stub
+-ingestion_stub = types.ModuleType('validation_harness.ingestion')
+-code_ingestion = """
+-import pandas as pd
+-import numpy as np
+-
+-def validate_ohlcv_data(df: pd.DataFrame) -> dict:
+-    if df is None or df.empty:
+-        return {"valid": False, "error": "Empty or None", "missing_values": 0, "duplicate_timestamps": 0, "is_sorted": False}
+-    required = ["open", "high", "low", "close", "tick_volume", "spread", "real_volume"]
+-    missing = [c for c in required if c not in df.columns]
+-    if missing:
+-        return {"valid": False, "error": f"Missing: {missing}", "missing_values": 0, "duplicate_timestamps": 0, "is_sorted": False}
+-    missing_vals = int(df[required].isna().sum().sum())
+-    if not isinstance(df.index, pd.DatetimeIndex):
+-        return {"valid": False, "error": "Not DatetimeIndex", "missing_values": missing_vals, "duplicate_timestamps": 0, "is_sorted": False}
+-    dup_times = int(df.index.duplicated().sum())
+-    is_sorted = bool(df.index.is_monotonic_increasing)
+-    valid_prices = bool((df["open"] > 0).all() and (df["close"] > 0).all())
+-    valid_boundaries = bool((df["high"] >= df[["open", "close", "low"]].max(axis=1)).all() and 
+-                            (df["low"] <= df[["open", "close", "high"]].min(axis=1)).all())
+-    valid_vols = bool((df["tick_volume"] >= 0).all() and (df["spread"] >= 0).all() and (df["real_volume"] >= 0).all())
+-    valid = (missing_vals == 0) and (dup_times == 0) and is_sorted and valid_prices and valid_boundaries and valid_vols
+-    return {"valid": bool(valid), "missing_values": missing_vals, "duplicate_timestamps": dup_times, "is_sorted": is_sorted}
+-
+-def validate_tick_data(df: pd.DataFrame) -> dict:
+-    if df is None or df.empty:
+-        return {"valid": False, "error": "Empty or None", "missing_values": 0, "duplicate_timestamps": 0, "is_sorted": False, "invalid_spreads": 0}
+-    required = ["bid", "ask", "last", "volume", "time_msc", "flags", "volume_real"]
+-    missing = [c for c in required if c not in df.columns]
+-    if missing:
+-        return {"valid": False, "error": f"Missing: {missing}", "missing_values": 0, "duplicate_timestamps": 0, "is_sorted": False, "invalid_spreads": 0}
+-    missing_vals = int(df[required].isna().sum().sum())
+-    if not isinstance(df.index, pd.DatetimeIndex):
+-        return {"valid": False, "error": "Not DatetimeIndex", "missing_values": missing_vals, "duplicate_timestamps": 0, "is_sorted": False, "invalid_spreads": 0}
+-    dup_times = int(df.index.duplicated().sum())
+-    is_sorted = bool(df.index.is_monotonic_increasing)
+-    invalid_spreads = int((df["ask"] < df["bid"]).sum())
+-    valid_prices = bool((df["bid"] > 0).all() and (df["ask"] > 0).all())
+-    valid = (missing_vals == 0) and (dup_times == 0) and is_sorted and (invalid_spreads == 0) and valid_prices
+-    return {"valid": bool(valid), "missing_values": missing_vals, "duplicate_timestamps": dup_times, "is_sorted": is_sorted, "invalid_spreads": invalid_spreads}
+-
+-def sync_ohlcv_to_db(df, symbol, timeframe, engine):
+-    if df is None or df.empty: return 0
+-    df_copy = df.copy()
+-    df_copy["symbol"] = symbol
+-    df_copy["timeframe"] = timeframe
+-    df_copy.to_sql("ohlcv_data", engine, if_exists="append", index=True, index_label="time")
+-    return len(df)
+-
+-def sync_ticks_to_db(df, symbol, engine):
+-    if df is None or df.empty: return 0
+-    df_copy = df.copy()
+-    df_copy["symbol"] = symbol
+-    df_copy.to_sql("tick_data", engine, if_exists="append", index=True, index_label="time")
+-    return len(df)
+-
+-def check_db_integrity(engine):
+-    from sqlalchemy import inspect
+-    inspector = inspect(engine)
+-    tables = inspector.get_table_names()
+-    has_ohlcv = "ohlcv_data" in tables
+-    has_ticks = "tick_data" in tables
+-    return {"ohlcv_table_exists": has_ohlcv, "tick_table_exists": has_ticks, "valid": bool(has_ohlcv and has_ticks)}
+-"""
+-exec(code_ingestion, ingestion_stub.__dict__)
+-
+-# 2. CPCV Stub
+-cpcv_stub = types.ModuleType('validation_harness.cpcv')
+-code_cpcv = """
+-import pandas as pd
+-import numpy as np
+-from itertools import combinations
+-
+-class CPCVSplitter:
+-    def __init__(self, n_splits=5, n_test_splits=2, embargo_pct=0.01):
+-        if n_splits <= 0 or n_test_splits <= 0: raise ValueError("n_splits and n_test_splits must be > 0")
+-        if n_test_splits >= n_splits: raise ValueError("n_test_splits must be < n_splits")
+-        self.N = n_splits
+-        self.k = n_test_splits
+-        self.embargo_pct = embargo_pct
+-        self.purging_offset = pd.Timedelta(hours=0)
+-
+-    def split(self, df, event_times=None):
+-        n_samples = len(df)
+-        if n_samples < self.N: raise ValueError("Dataset too small")
+-        if event_times is None: event_times = pd.Series(df.index, index=df.index)
+-        indices = np.arange(n_samples)
+-        group_bounds = np.linspace(0, n_samples, self.N + 1, dtype=int)
+-        test_combos = list(combinations(range(self.N), self.k))
+-        splits = []
+-        for combo in test_combos:
+-            test_indices = np.concatenate([indices[group_bounds[g]:group_bounds[g+1]] for g in combo])
+-            train_groups = [g for g in range(self.N) if g not in combo]
+-            train_indices = np.concatenate([indices[group_bounds[g]:group_bounds[g+1]] for g in train_groups]) if train_groups else np.array([], dtype=int)
+-            if len(train_indices) > 0 and len(test_indices) > 0:
+-                train_indices = self._purge_and_embargo(df, event_times, train_indices, test_indices, combo, group_bounds)
+-            splits.append({"train": train_indices, "test": test_indices})
+-        return splits
+-
+-    def _purge_and_embargo(self, df, event_times, train_indices, test_indices, test_groups, group_bounds):
+-        time_span = (df.index[-1] - df.index[0]).total_seconds()
+-        embargo_duration = pd.Timedelta(seconds=time_span * self.embargo_pct)
+-        
+-        keep_mask = np.ones(len(train_indices), dtype=bool)
+-        train_starts = df.index[train_indices]
+-        train_hits = event_times.iloc[train_indices]
+-        
+-        for g in test_groups:
+-            start_idx = group_bounds[g]
+-            end_idx = group_bounds[g+1] - 1
+-            if end_idx < start_idx:
+-                continue
+-            
+-            t_start_min = df.index[start_idx]
+-            t_hit_max = event_times.iloc[start_idx:end_idx+1].max()
+-            if pd.isna(t_hit_max):
+-                t_hit_max = df.index[end_idx]
+-                
+-            t_embargo = t_hit_max + embargo_duration
+-            
+-            train_hits_filled = train_hits.fillna(df.index[-1] + pd.Timedelta(days=365))
+-            
+-            cond1_purge = (train_starts < t_start_min) & (train_hits_filled + self.purging_offset >= t_start_min)
+-            cond2_purge = (train_starts >= t_start_min) & (train_starts <= t_embargo)
+-            
+-            purged_by_g = cond1_purge | cond2_purge
+-            keep_mask = keep_mask & (~purged_by_g)
+-            
+-        return train_indices[keep_mask]
+-"""
+-exec(code_cpcv, cpcv_stub.__dict__)
+-
+-# 3. Metrics Stub
+-metrics_stub = types.ModuleType('validation_harness.metrics')
+-code_metrics = """
+-import pandas as pd
+-import numpy as np
+-import scipy.stats as stats
+-
+-def calculate_sharpe_ratio(returns, risk_free_rate=0.0, periods=252):
+-    if returns is None or returns.empty: return 0.0
+-    clean = returns.dropna()
+-    if clean.empty: return 0.0
+-    std = clean.std()
+-    if std == 0 or np.isnan(std): return 0.0
+-    return float(((clean.mean() - risk_free_rate) / std) * np.sqrt(periods))
+-
+-def calculate_sortino_ratio(returns, risk_free_rate=0.0, periods=252):
+-    if returns is None or returns.empty: return 0.0
+-    clean = returns.dropna()
+-    if clean.empty: return 0.0
+-    downside = clean[clean < risk_free_rate]
+-    if downside.empty: return 0.0
+-    downside_dev = np.sqrt(np.mean(downside ** 2))
+-    if downside_dev == 0 or np.isnan(downside_dev): return 0.0
+-    return float(((clean.mean() - risk_free_rate) / downside_dev) * np.sqrt(periods))
+-
+-def deduct_transaction_costs(returns, trades=None, spread=0.0, commission=0.0):
+-    if returns is None or returns.empty: return pd.Series(dtype=float)
+-    net_returns = returns.copy()
+-    if trades is None: trades = (returns != 0).astype(int)
+-    return net_returns - (spread + commission) * trades
+-
+-def calculate_dsr(observed_sr, sr_variance, num_trials, num_samples, skewness=0.0, kurtosis=3.0):
+-    if num_samples <= 2: return 0.0
+-    if num_trials <= 1 or sr_variance <= 0:
+-        return float(stats.norm.cdf(observed_sr * np.sqrt(num_samples - 1)))
+-    euler_gamma = 0.5772156649
+-    m_term = max(0.0001, min(0.9999, 1 - 1.0 / num_trials))
+-    m_e_term = max(0.0001, min(0.9999, 1 - 1.0 / (num_trials * np.e)))
+-    e_max = (1 - euler_gamma) * stats.norm.ppf(m_term) + euler_gamma * stats.norm.ppf(m_e_term)
+-    sr_star = np.sqrt(sr_variance) * e_max
+-    numerator_var = 1.0 - skewness * observed_sr + (kurtosis - 1.0) / 4.0 * (observed_sr ** 2)
+-    sr_estimator_var = numerator_var / (num_samples - 1)
+-    if sr_estimator_var <= 0: return 0.0
+-    return float(stats.norm.cdf((observed_sr - sr_star) / np.sqrt(sr_estimator_var)))
+-
+-def majority_class_baseline(y_true, y_pred):
+-    if y_true is None or y_true.empty: return {"model_accuracy": 0.0, "baseline_accuracy": 0.0, "relative_accuracy": 0.0}
+-    majority_val = y_true.mode()[0] if not y_true.empty else 0
+-    baseline_pred = pd.Series(majority_val, index=y_true.index)
+-    model_acc = (y_pred == y_true).mean()
+-    baseline_acc = (baseline_pred == y_true).mean()
+-    return {"model_accuracy": float(model_acc), "baseline_accuracy": float(baseline_acc), "relative_accuracy": float(model_acc - baseline_acc)}
+-
+-def buy_and_hold_baseline(strategy_returns, prices):
+-    if strategy_returns is None or strategy_returns.empty or prices is None or prices.empty:
+-        return {"strategy_cumulative_return": 0.0, "bah_cumulative_return": 0.0, "relative_cumulative_return": 0.0,
+-                "strategy_sharpe": 0.0, "bah_sharpe": 0.0, "relative_sharpe": 0.0}
+-    bah_returns = prices.pct_change().fillna(0)
+-    common_idx = strategy_returns.index.intersection(bah_returns.index)
+-    strat = strategy_returns.loc[common_idx]
+-    bah = bah_returns.loc[common_idx]
+-    cum_strat = (1 + strat).prod() - 1
+-    cum_bah = (1 + bah).prod() - 1
+-    std_strat = strat.std()
+-    sr_strat = strat.mean() / std_strat * np.sqrt(252) if std_strat > 0 else 0.0
+-    std_bah = bah.std()
+-    sr_bah = bah.mean() / std_bah * np.sqrt(252) if std_bah > 0 else 0.0
+-    return {
+-        "strategy_cumulative_return": float(cum_strat), "bah_cumulative_return": float(cum_bah),
+-        "relative_cumulative_return": float(cum_strat - cum_bah), "strategy_sharpe": float(sr_strat),
+-        "bah_sharpe": float(sr_bah), "relative_sharpe": float(sr_strat - sr_bah)
+-    }
+-"""
+-exec(code_metrics, metrics_stub.__dict__)
+-
+-# --- Dynamic Check and Injection ---
+-import importlib
+-
+-# 1. Check/Stub Ingestion
+-try:
+-    ingestion_mod = importlib.import_module('validation_harness.ingestion')
+-except ImportError:
+-    ingestion_mod = ingestion_stub
+-    sys.modules['validation_harness.ingestion'] = ingestion_mod
+-
+-# Inject missing functions into imported ingestion module
+-for func_name in ['validate_ohlcv_data', 'validate_tick_data', 'sync_ohlcv_to_db', 'sync_ticks_to_db', 'check_db_integrity']:
+-    if not hasattr(ingestion_mod, func_name):
+-        setattr(ingestion_mod, func_name, getattr(ingestion_stub, func_name))
+-
+-# 2. Check/Stub CPCV
+-try:
+-    cpcv_mod = importlib.import_module('validation_harness.cpcv')
+-except ImportError:
+-    cpcv_mod = cpcv_stub
+-    sys.modules['validation_harness.cpcv'] = cpcv_mod
+-
+-# Inject missing classes into imported cpcv module
+-for attr_name in ['CPCVSplitter']:
+-    if not hasattr(cpcv_mod, attr_name):
+-        setattr(cpcv_mod, attr_name, getattr(cpcv_stub, attr_name))
+-
+-# 3. Check/Stub Metrics
+-try:
+-    metrics_mod = importlib.import_module('validation_harness.metrics')
+-except ImportError:
+-    metrics_mod = metrics_stub
+-    sys.modules['validation_harness.metrics'] = metrics_mod
+-
+-# Inject missing functions into imported metrics module
+-for func_name in ['calculate_sharpe_ratio', 'calculate_sortino_ratio', 'deduct_transaction_costs', 'calculate_dsr', 'majority_class_baseline', 'buy_and_hold_baseline']:
+-    if not hasattr(metrics_mod, func_name):
+-        setattr(metrics_mod, func_name, getattr(metrics_stub, func_name))
+-
+-
+ # --- Reusable Pytest Fixtures ---
+ 
+ @pytest.fixture
+diff --git a/validation_harness/tests/test_adversarial.py b/validation_harness/tests/test_adversarial.py
+index a2d9b9b..c3d9b9b 100644
+--- a/validation_harness/tests/test_adversarial.py
++++ b/validation_harness/tests/test_adversarial.py
+@@ -10,8 +10,10 @@ def test_empty_inputs():
+     pred_times = pd.Series(dtype='datetime64[ns]')
+     
+     cv = CombinatorialPurgedKFold(n_partitions=5, n_test_partitions=2)
+-    # This currently raises IndexError due to np.array([]) having float64 dtype
+-    with pytest.raises(IndexError, match="arrays used as indices must be of integer"):
+-        list(cv.split(X, pred_times=pred_times))
++    splits = list(cv.split(X, pred_times=pred_times))
++    assert len(splits) == 10
++    for train_idx, test_idx in splits:
++        assert len(train_idx) == 0
++        assert len(test_idx) == 0
+ 
+ def test_extreme_parameters():
+     """Verify behavior with extreme parameters: n_partitions, n_test_partitions"""
+     # 1. n_partitions = 1, n_test_partitions = 0
+-    # This also raises IndexError due to empty test_idx (float64 np.array([]))
+     cv = CombinatorialPurgedKFold(n_partitions=1, n_test_partitions=0)
+     X = pd.DataFrame(index=pd.date_range("2023-01-01", periods=10))
+     pred_times = pd.Series(X.index, index=X.index)
+-    with pytest.raises(IndexError, match="arrays used as indices must be of integer"):
+-        list(cv.split(X, pred_times=pred_times))
++    splits = list(cv.split(X, pred_times=pred_times))
++    assert len(splits) == 1
++    train_idx, test_idx = splits[0]
++    assert len(test_idx) == 0
++    assert len(train_idx) == 10
+         
+     # 2. n_partitions < n_test_partitions
+     with pytest.raises(ValueError, match="n_test_partitions must be less than n_partitions"):
+@@ -34,8 +36,8 @@ def test_fewer_samples_than_partitions():
+     
+     cv = CombinatorialPurgedKFold(n_partitions=5, n_test_partitions=2)
+-    # This raises IndexError because empty partitions produce empty test_idx arrays of float64
+-    with pytest.raises(IndexError, match="arrays used as indices must be of integer"):
+-        list(cv.split(X, pred_times=pred_times))
++    splits = list(cv.split(X, pred_times=pred_times))
++    assert len(splits) == 10
+ 
+ def test_non_chronological_index_alignment():
+     """Verify index alignment of pred_times when X and pred_times have different sorting orders"""
+@@ -53,9 +55,10 @@ def test_non_chronological_index_alignment():
+     # Day 2's event (index 0) gets t_hit = Day 1.5. Since t_hit < t_start, this event has a negative duration.
+     # Day 1's event (index 1) gets t_hit = Day 2.5.
+     # In Split 2 (where Day 2 is test, Day 1 is train):
+     # Train starts at Day 1, ends at Day 2.5 (from the alignment bug).
+     # Since train event ends at Day 2.5, which is after test start Day 2, it is purged!
+     # If aligned correctly, train event ends at Day 1.5 (before test start Day 2), so it should NOT be purged.
+     # Because of the bug, train is empty.
+     train_idx, test_idx = splits[1]  # Split 2
+-    assert len(train_idx) == 0  # Bug: train is incorrectly purged
++    assert len(train_idx) == 1
++    assert train_idx[0] == 1

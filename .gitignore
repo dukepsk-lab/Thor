@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Logs
+logs/
+*.log
+pipeline_*.log
+
+# Models (large binary files)
+models/
+*.pkl
+*.pt
+*.txt
+!requirements.txt
+
+# MT5
+*.ex5
+*.mq5
+
+# Optuna
+*.db
+optuna_*.db
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+
+# Misc
+*.zip
+*.png
+__pycache__/

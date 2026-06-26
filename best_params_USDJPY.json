@@ -1,0 +1,12 @@
+{
+    "tp_multiplier": 1.5703987312737033,
+    "sl_multiplier": 2.4317833127080863,
+    "tree_depth": 3,
+    "learning_rate": 0.00675640734931347,
+    "n_estimators": 50,
+    "reg_alpha": 0.25480416373832654,
+    "reg_lambda": 20.15033468248217,
+    "colsample_bytree": 0.7430182617587199,
+    "subsample": 0.627152420384278,
+    "confidence_threshold": 0.49126991239691287
+}
