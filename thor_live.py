@@ -194,31 +194,42 @@ class ThorSymbolTrader:
         # 1. Regime Detection (HMM)
         regime_features = latest[['return', 'volatility']].values
         regime_state = self.hmm.predict(regime_features)[0]
-        current_regime = "trend" if regime_state == 0 else "range"
+        final_regime_str = f'state_{regime_state}'
         
         # 2. Primary Signal (LightGBM)
         tree_features = latest[self.feature_cols]
         tree_probas = self.tree.predict(tree_features)[0]
         
-        primary_signal = 0
-        if current_regime == "trend":
-            predicted_class = np.argmax(tree_probas)
-            primary_signal = -1 if predicted_class == 0 else (1 if predicted_class == 2 else 0)
+        # LGBM predicts class 0 (short), 1 (flat), 2 (long)
+        predicted_class = np.argmax(tree_probas)
+        primary_signal = -1 if predicted_class == 0 else (1 if predicted_class == 2 else 0)
         
         # 3. Meta-Learner Confidence Filter
         p_correct = 0.0
         if primary_signal != 0:
-            meta_features = pd.DataFrame({
-                'primary_signal': [primary_signal],
-                'regime_trend': [1 if current_regime == 'trend' else 0],
-                'volatility': latest['volatility'].values
-            })
-            p_correct = self.meta.predict_proba(meta_features)[0][1]
+            # Ensure features match EXACTLY what MetaLearner was trained on
+            if hasattr(self.meta, 'calibrated_clf') and hasattr(self.meta.calibrated_clf, 'feature_names_in_'):
+                expected_cols = list(self.meta.calibrated_clf.feature_names_in_)
+            else:
+                expected_cols = ['primary_signal', 'volatility', 'regime_state_0', 'regime_state_1', 'regime_state_2']
+            
+            meta_dict = {col: 0.0 for col in expected_cols}
+            meta_dict['primary_signal'] = float(primary_signal)
+            meta_dict['volatility'] = float(latest['volatility'].iloc[0])
+            
+            regime_col = f'regime_{final_regime_str}'
+            if regime_col in expected_cols:
+                meta_dict[regime_col] = 1.0
+                
+            meta_features = pd.DataFrame([meta_dict], columns=expected_cols)
+            
+            # predict_proba returns a Series of calibrated probabilities
+            p_correct = float(self.meta.predict_proba(meta_features).iloc[0])
         
         # 4. Apply confidence threshold
         final_signal = primary_signal if p_correct >= self.confidence_threshold else 0
         
-        return final_signal, p_correct, current_regime
+        return final_signal, p_correct, final_regime_str
     
     def execute_cycle(self):
         """
